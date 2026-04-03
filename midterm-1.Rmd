@@ -1,0 +1,245 @@
+---
+title: "Golden State Warriors Shot Analysis"
+subtitle: "STAT 345 Midterm Project"
+author: "Gracie Bergeman"
+font: 12pt
+date: "April 3, 2026"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+
+# Warriors Shot Trends
+
+## Key Findings
+
+- The Warriors consistently take a high volume of shots near the basket across all seasons.
+- Three-point shooting (especially above the arc) remains a major part of the offense.
+- Shot selection appears stable from 2021-2024 with no major structural changes.
+- Made shots are heavily concentrated near the rim and in certain three-point areas.
+- Missed shots are more spread out, especially along the three-point arc.
+- There is a noticeable clustering of shots in the right corner and right side of the paint.
+```{r message=FALSE, warning=FALSE, echo=FALSE}
+library(tidyverse)
+library(hoopR)
+library(png)
+library(grid)
+# Comments throughout the code are intended to provide additional explanation for the analysis process, including decisions made and reasoning behind each step. Intended for Supervisor viewing.
+```
+
+```{r echo=FALSE}
+pbp <- load_nba_pbp(seasons = 2020:2024)
+```
+    
+# Single Season Shot Chart (2024)
+```{r echo=FALSE}
+warriors_shots=pbp %>%
+  filter(shooting_play==TRUE) %>%
+  filter(!is.na(coordinate_x), !is.na(coordinate_y))%>%
+  filter((home_team_abbrev=="GS" & team_id==home_team_id) | (away_team_abbrev=="GS"& team_id==away_team_id)) %>%
+ mutate(result = ifelse(scoring_play == TRUE, "Made","Missed"),x =abs(coordinate_x), y = -coordinate_y)
+
+#I started by filtering the data to include only shot attempts using shooting_play == TRUE and removed any observations with missing coordinates so all shots could be plotted correctly. I then filtered for the Golden State Warriors by including both home and away games, ensuring all of their shots were captured.
+
+#I created a result variable to label each shot as made or missed using scoring_play. Finally, I adjusted the shot coordinates by taking the absolute value of coordinate_x and flipping coordinate_y so that all shots appear on one half-court and align correctly with the court background.
+```
+   
+```{r echo=FALSE}
+warriors_2024 <- warriors_shots %>%
+  filter(season == 2024) %>%
+  filter(x >= 0, x <= 47, y >= -25, y <= 25)
+  #filtering here to only keep 2024 data for my first graph
+
+#read in my image from the internet of a half-court in basketball. I then convert into something ggplot can use, and make it a little transparent so the data is still visible.
+court <- readPNG("court.png")
+court_grob <- rasterGrob(court, interpolate = TRUE, gp = gpar(alpha = 0.06))
+
+ggplot(warriors_2024, aes(x = x, y = y, color = result)) +
+  annotation_custom(court_grob, xmin = -0.25, xmax = 45.25, ymin = -24.5, ymax = 24.5) +
+  geom_point(
+    alpha = 0.25,
+    size = 1,
+    position = position_jitter(width = 0.2, height = 0.2)
+  ) +
+  scale_color_manual(values = c("Made" = "#1D428A", "Missed" = "#E15759")) +
+guides(color = guide_legend(override.aes = list(size = 4, alpha = 1))) +
+  coord_fixed(xlim = c(-0.25, 45.25), ylim = c(-24.5, 24.5), expand = FALSE) +
+  labs(
+    title = "Golden State Warriors Shot Chart (2024)",
+    subtitle = "Blue points are made shots and red points are missed shots",
+    x = "Sideline",
+    y = "Half-Court",
+    color = "Result"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5)
+  )
+#I began by filtering the data to only include Golden State Warriors shots from the 2024 season and removed any missing coordinate values so that all shots could be plotted correctly. I mapped the shot locations using the x and y coordinates provided in the dataset and used color to distinguish between made and missed shots.
+
+#To better represent the spatial context, I added a half-court image as the background and scaled it so that it aligned with the shot coordinates. I adjusted the transparency of the court image so that it would not overpower the data points.
+
+#Because many shots occur in similar locations, I used smaller point sizes, transparency (alpha), and slight jitter to reduce overlap and improve readability. This allows areas with more shots to appear denser without completely hiding other points.
+
+#I chose colors that are visually distinct and also reflect the Warriors’ team colors, using blue for made shots and red for missed shots. I then fixed the coordinate system using coord_fixed() so the court maintains the correct proportions and aligns with the shot data.
+
+#I added a clear title, subtitle, and axis labels to make the graph easier to interpret.
+```
+
+# Shot Locations Over Time (2021-2024)
+```{r echo=FALSE, fig.width=10, fig.height=14}
+warriors_years <- warriors_shots %>%
+  filter(season >= 2021, season <= 2024) %>%
+  filter(x >= 0, x <= 47, y >= -25, y <= 25) %>%
+  mutate(panel = paste(season, result)) %>%
+  mutate(panel = factor(panel, levels = c(
+    "2021 Made", "2021 Missed",
+    "2022 Made", "2022 Missed",
+    "2023 Made", "2023 Missed",
+    "2024 Made", "2024 Missed"
+  )))
+
+court <- readPNG("court.png")
+court_grob <- rasterGrob(court, interpolate = FALSE, gp = gpar(alpha = 0.06))
+
+ggplot(warriors_years, aes(x = x, y = y, color = result)) +
+  annotation_custom(court_grob, xmin = -0.25, xmax = 45.25, ymin = -24.5, ymax = 24.5) +
+  geom_point(
+    alpha = 0.25,
+    size = 0.7,
+    position = position_jitter(width = 0.15, height = 0.15)
+  ) +
+  scale_color_manual(values = c("Made" = "#1D428A", "Missed" = "#E15759")) +
+  coord_fixed(xlim = c(-0.25, 45.25), ylim = c(-24.5, 24.5), expand = FALSE) +
+  facet_wrap(~panel, ncol = 2) +
+  labs(
+    title = "Golden State Warriors Shot Locations Over Time",
+    x = "Sideline",
+    y = "Half-Court"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    strip.background = element_blank(),
+    strip.text = element_text(size = 10),
+    legend.position = "none"
+  )
+#I created this graph to show how the Golden State Warriors’ shot locations changed over time from 2021 through 2024. I started by filtering the full shot dataset to only include those four seasons and then kept only observations with valid shot coordinates that fell within the half-court area used in the plot. This made sure the graph only included shots that could be displayed correctly on the court background.
+
+#I used the same court image and coordinate scaling as in the single-year graph so that the multi-year version would stay consistent. The court image was added as a background with low transparency so that it provides context without distracting from the shot locations. I also kept the same fixed coordinate limits so that each panel would be directly comparable across seasons.
+
+#To show both time and shot result clearly, I used facet_wrap to create panels for each season and shot result combination.This places the seasons across columns and separates made and missed shots into different rows. I chose this layout because plotting both results in the same panel caused too much overlap between colors, which made the graph hard to interpret. By separating made and missed shots, it becomes much easier to compare where successful and unsuccessful shots were taken across different seasons.
+
+#I used color to distinguish shot result, with blue for made shots and red for missed shots. These colors are easy to tell apart and also keep the Warriors’ blue as the main team color. I used smaller point sizes, transparency, and slight jitter to reduce overplotting. Since many shots occur in similar locations, these choices help reveal dense shooting areas without completely hiding other points.
+
+#I designed this graph to make season-to-season comparisons easier while still keeping the court background and shot-location detail from the original single-year plot. The final result highlights both where the Warriors tended to shoot and how those patterns differed for made and missed shots over time.
+```
+
+
+# Detailed Explanation Of Findings
+
+## 1. High Concentration of Shots Near the Basket
+
+Across all seasons, the densest area of shot attempts is in the paint and directly around the rim. This indicates that the Warriors consistently prioritize high-percentage scoring opportunities close to the basket. These shots are generally more efficient, which explains why there is also a high concentration of made shots in this area.
+
+## 2. Continued Emphasis on Three-Point Shooting
+
+There is a clear arc-shaped pattern of shots beyond the three-point line in every season. This shows that the team consistently relies on perimeter shooting as a key part of their offense. The spacing of these shots suggests a modern offensive strategy that focuses on creating open three-point opportunities.
+
+## 3. Little Change in Shot Distribution Over Time
+
+When comparing seasons from 2021 to 2024, the overall shot patterns remain very similar. The team continues to take shots from the same key areas, such as the paint and beyond the arc. This suggests that the Warriors have maintained a consistent offensive system rather than making major strategic changes.
+
+## 4. Made Shots Are More Concentrated
+
+Made shots are tightly grouped near the rim and in specific three-point areas. This indicates that the team is most efficient in these locations. The clustering shows that successful scoring tends to come from high-percentage areas rather than evenly across the court.
+
+## 5. Missed Shots Are More Dispersed
+
+Missed shots are spread out more widely, especially along the three-point arc and mid-range areas. This suggests that lower-percentage shots are taken from a variety of locations, and these are less likely to result in points. The wider spread highlights differences in shot difficulty and efficiency.
+
+## 6. Right-side Shooting Preference
+
+There is a noticeable concentration of shots on the right side of the court, particularly near the basket and in the right corner. This may reflect offensive play design, player positioning, or tendencies of key players. It suggests that certain areas of the court are used more frequently than others.
+   
+### Individual Shot Selection Patterns (2024)
+```{r echo=FALSE, fig.width=6, fig.height=10}
+# load a second dataset: player box scores
+player_box <- load_nba_player_box(seasons = 2020:2024)
+
+# keep only the columns needed for the join
+player_names <- player_box %>%
+  select(game_id, athlete_id, athlete_display_name, team_id) %>%
+  distinct()
+
+# join player names onto shot data
+warriors_players <- warriors_shots %>%
+  left_join(
+    player_names,
+    by = c("game_id" = "game_id",
+           "athlete_id_1" = "athlete_id",
+           "team_id" = "team_id")
+  )
+
+# keep 2024 only for the extra graph
+warriors_players_2024 <- warriors_players %>%
+  filter(season == 2024) %>%
+  filter(x >= 0, x <= 47, y >= -25, y <= 25)
+
+# find top 4 Warriors players by shot attempts
+top_players <- warriors_players_2024 %>%
+  count(athlete_display_name, sort = TRUE) %>%
+  slice(1:4)
+
+warriors_top4 <- warriors_players_2024 %>%
+  filter(athlete_display_name %in% top_players$athlete_display_name)
+
+court <- readPNG("court.png")
+court_grob <- rasterGrob(court, interpolate = FALSE, gp = gpar(alpha = 0.06))
+
+ggplot(warriors_top4, aes(x = x, y = y)) +
+  annotation_custom(court_grob, xmin = -0.25, xmax = 45.25, ymin = -24.5, ymax = 24.5) +
+  geom_point(
+    color = "#1D428A",
+    alpha = 0.18,
+    size = 0.7,
+    position = position_jitter(width = 0.15, height = 0.15)
+  ) +
+  coord_fixed(xlim = c(-0.25, 45.25), ylim = c(-24.5, 24.5), expand = FALSE) +
+  facet_wrap(~athlete_display_name, ncol = 2) +
+  labs(
+    title = "Golden State Warriors Shot Locations by Player (2024)",
+    subtitle = "Top 4 Warriors players by shot attempts",
+    x = "Sideline",
+    y = "Half-Court"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5),
+    strip.background = element_blank(),
+    strip.text = element_text(size = 10)
+  )
+#I created this graph to show how shot locations differ across individual Warriors players in the 2024 season. I joined the shot data with a second dataset containing player information so each shot could be linked to a specific player.
+
+#I then filtered the data to 2024 and kept only valid half-court shot coordinates. I also focused on the top four players by shot attempts to keep the graph clear and readable.
+
+#I used the same court image and scaling as previous graphs for consistency, with low transparency so it provides context without distracting from the data.
+
+#To improve readability, I used facet_wrap to separate players into individual panels and adjusted point size, transparency, and jitter to reduce overplotting.
+
+#This graph adds player-level detail to the analysis and helps highlight differences in shot selection across key Warriors players.
+```
+
+## Description of Additional Graphic
+
+This graphic extends the original shot chart by incorporating player-level information from a second dataset. Specifically, I joined the Warriors play-by-play shot data with NBA player box score data to identify which player attempted each shot.
+
+The visualization focuses on the top four Warriors players in 2024 based on total shot attempts and displays their individual shot locations. By separating the data by player, this graphic provides additional insight into how shot selection varies across players. For example, perimeter-oriented players show heavier concentration beyond the three-point arc, while others have more attempts near the basket.
+
+This added layer of information enhances the original analysis by connecting shot location patterns to specific players, making it easier to understand individual roles within the team’s offensive structure.
+  
+  
+
+
+
